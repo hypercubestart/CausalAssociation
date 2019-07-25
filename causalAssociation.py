@@ -215,7 +215,7 @@ def compareSets(pvalues, mutation_associations, alpha):
 
     for gene_index in range(gene_count):
         for regulon_index in range(regulon_count):
-            if 0 < pvalues[gene_index][regulon_index] < alpha:
+            if pvalues[gene_index][regulon_index] < alpha:
                 gene_set.add(gene_index)
                 regulon_set.add(regulon_index)
 
@@ -228,7 +228,7 @@ def compareSets(pvalues, mutation_associations, alpha):
         if gene_index in mutation_associations and mutation_associations[gene_index][0] in regulon_set:
             correct+=1
 
-    printt("number correct: {}/{}".format(correct, len(gene_set)))
+    printt("number correct: {}/{}".format(correct, len(mutation_associations)))
 
 if __name__ == "__main__":
     # generate and save cell data

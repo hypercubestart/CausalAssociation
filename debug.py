@@ -1,80 +1,67 @@
 import dill
-from single_cell import SingleCell
 from scipy import stats
 import math
 import collections
 import datetime
+import time
+import numpy as np
 
 def printt(message):
     print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t {}".format(message)))
     return None
 
-def t_test_debug(cell_data, incorrect):
-    threshold = 0.01
-    ANOVA_threshold = 0.01
-    predicted_mapping = {}
-    aggregate_p_values = []
-    for mutationIndex in range(len(cell_data[0].variants)):
+def mann_whitney_u_test_debug(gene_data, regulon_data, alpha, mutation_associations):
+    start_time = time.time()
+    printt("starting mann-whitney-u-test...")
+    sample_count = len(gene_data)
+    gene_count = len(gene_data[0])
+    regulon_count = len(regulon_data[0])
 
-        if (mutationIndex in incorrect):
-            printt("mutation index {} is incorrect".format(mutationIndex))
+    pvalues = np.zeros((gene_count, regulon_count))
 
-        # split regulons by with and without mutation
+    mutated_genes = sorted([i for i in mutation_associations])
+    for geneIndex in mutated_genes:
+        # split regulon activity by with variant and without
         with_mutation = []
         without_mutation = []
-        for cell in cell_data:
-            if cell.get_variant(mutationIndex) == 1:
-                with_mutation.append(cell.copy_regulon())
+
+        for sample_index in range(sample_count):
+            if gene_data[sample_index][geneIndex] == 1:
+                with_mutation.append(regulon_data[sample_index])
             else:
-                without_mutation.append(cell.copy_regulon())
+                without_mutation.append(regulon_data[sample_index])
 
-        # TODO: filter to find significant difference between two groups
-
-        # check that each list has at least one regulon
-        if len(with_mutation) == 0 or len(without_mutation) == 0:
-            printt("T-test: Mutation at index {} cannot be associated because len == 0".format(mutationIndex))
+        # check that each group has more than one sample
+        if len(without_mutation) <= 1 or len(with_mutation) <= 1:
+            for regulonIndex in [mutation_associations[geneIndex][0]]:
+                pvalues[geneIndex][regulonIndex] = 1
             continue
 
-        # evaluate p values
-        p_values = []
-        for i in range(len(with_mutation[0])):
+        for regulonIndex in [mutation_associations[geneIndex][0]]:
             with_mutation_regulon_activity = []
             without_mutation_regulon_activity = []
 
-            for j in range(len(with_mutation)):
-                with_mutation_regulon_activity.append(with_mutation[j][i])
-            for j in range(len(without_mutation)):
-                without_mutation_regulon_activity.append(without_mutation[j][i])
-
-
-            if len(with_mutation_regulon_activity) <= 1 or len(without_mutation_regulon_activity) <= 1:
-                p_values.append(1)
+            for i in range(len(with_mutation)):
+                with_mutation_regulon_activity.append(with_mutation[i][regulonIndex])
+            for i in range(len(without_mutation)):
+                without_mutation_regulon_activity.append(without_mutation[i][regulonIndex])
+            try:
+                mwu_test = stats.mannwhitneyu(with_mutation_regulon_activity, without_mutation_regulon_activity,
+                use_continuity=True, alternative='two-sided')  # perform mann-whitney u test
+            except Exception:
+                pvalues[geneIndex][regulonIndex] = 1
                 continue
 
-            # conduct t test between every pair of values between with_mutation_average and without_mutation_average
-            t_test = stats.ttest_ind(with_mutation_regulon_activity, without_mutation_regulon_activity, equal_var=False)
+            #if mwu_test.pvalue < alpha:
+            pvalues[geneIndex][regulonIndex] = mwu_test.pvalue
 
-            ## p-value can be nan is length <= 1 or no variance
-            if math.isnan(t_test.pvalue):
-                p_values.append(1)
-            else:
-                p_values.append(t_test.pvalue)
-
-        # ignore if no statistically significant difference in mean is found
-        if (min(p_values) > threshold):
-            continue
-
-        # get indices with lowest p value
-        index = p_values.index(min(p_values))
-        # use most common regulon activity to determine effect of variant on regulon
-        counts = collections.Counter([regulon[index] for regulon in with_mutation]).most_common()[0][0]
-        predicted_mapping[mutationIndex] = [index, counts]
-        aggregate_p_values.append(p_values)
-    return predicted_mapping, aggregate_p_values
+    printt('finished mann_whitney_u_test in {:.2f} minutes'.format((time.time() - start_time) / 60.))
+    return pvalues
 
 if __name__ == "__main__":
 
     dill.load_session('./debug.dill')
-    t_test_debug(cell_data, t_test_incorrect)
+    mann_whitney_u_test_debug(gene_data, regulon_data, alpha, mutation_associations)
+    #t_test_debug(cell_data, t_test_incorrect)
 
 
