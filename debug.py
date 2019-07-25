@@ -33,7 +33,7 @@ def mann_whitney_u_test_debug(gene_data, regulon_data, alpha, mutation_associati
 
         # check that each group has more than one sample
         if len(without_mutation) <= 1 or len(with_mutation) <= 1:
-            for regulonIndex in [mutation_associations[geneIndex][0]]:
+            for regulonIndex in range(regulon_count):
                 pvalues[geneIndex][regulonIndex] = 1
             continue
 

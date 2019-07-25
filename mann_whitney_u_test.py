@@ -29,6 +29,8 @@ def mann_whitney_u_test(gene_data, regulon_data, alpha):
 
         # check that each group has more than one sample
         if len(without_mutation) <= 1 or len(with_mutation) <= 1:
+            for regulonIndex in range(regulon_count):
+                pvalues[geneIndex][regulonIndex] = 1
             continue
 
         for regulonIndex in range(regulon_count):
@@ -41,8 +43,10 @@ def mann_whitney_u_test(gene_data, regulon_data, alpha):
                 without_mutation_regulon_activity.append(without_mutation[i][regulonIndex])
             try:
                 mwu_test = stats.mannwhitneyu(with_mutation_regulon_activity, without_mutation_regulon_activity,
-                use_continuity=True, alternative='two-sided')  # perform mann-whitney u test
+                                              use_continuity=True,
+                                              alternative='two-sided')  # perform mann-whitney u test
             except Exception:
+                pvalues[geneIndex][regulonIndex] = 1
                 continue
 
             #if mwu_test.pvalue < alpha:
