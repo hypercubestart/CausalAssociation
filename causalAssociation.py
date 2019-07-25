@@ -3,7 +3,7 @@ import random
 import datetime
 from scipy import stats
 import math
-from .single_cell import SingleCell
+from single_cell import SingleCell
 import collections
 from sklearn.metrics import roc_curve
 from sklearn.metrics import roc_auc_score
@@ -11,9 +11,9 @@ from sklearn.preprocessing import label_binarize
 import matplotlib.pyplot as plt
 import pandas as pd
 import dill
-from src.t_test import t_test
+from t_test import t_test
 import time
-from src.mann_whitney_u_test import mann_whitney_u_test
+from mann_whitney_u_test import mann_whitney_u_test
 
 def printt(message):
     print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t {}".format(message)))
