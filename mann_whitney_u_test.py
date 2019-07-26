@@ -133,9 +133,9 @@ def calculateMWU(geneIndex):
             mwu_test = stats.mannwhitneyu(with_mutation_regulon_activity, without_mutation_regulon_activity,
                                           use_continuity=True,
                                           alternative='two-sided')  # perform mann-whitney u test
+            pvalues[regulonIndex] = mwu_test.pvalue
         except Exception:
              pvalues[regulonIndex] = 1
 
-        pvalues[regulonIndex] = mwu_test.pvalue
     return pvalues
 
