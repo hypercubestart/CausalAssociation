@@ -27,7 +27,7 @@ def calculatePercentage(actual_mapping, predicted_mapping, name):
     number_wrong = 0
     wrong_variant_regulon_association = set()
     for key, value in predicted_mapping.items():
-        if value[0] == actual_mapping[key][0]:
+        if key in actual_mapping and value[0] == actual_mapping[key][0]:
             number_correct+=1
             if value[1] == actual_mapping[key][1]:
                 correct_effects+=1
@@ -47,34 +47,34 @@ def calculatePercentage(actual_mapping, predicted_mapping, name):
                   len(actual_mapping)))
     return wrong_variant_regulon_association
 
-def auc_score(actual_mapping, predicted_mapping, p_values, name, regulon_count, variant_count):
+def auc_score(actual_mapping, predicted_mapping, p_values, name, regulon_count, gene_count):
     y_true = [] # true classes
     filteredp_values = [] #probabilities
 
-    for mutationIndex in range(variant_count):
+    for mutationIndex in range(gene_count):
         if (mutationIndex in predicted_mapping):
             y_true.append(actual_mapping[mutationIndex][0])
             filteredp_values.append(p_values[mutationIndex])
 
     y_true = label_binarize(y_true, classes=range(regulon_count))
-    y_true, p_values = removeColumnsWithAllZeros(y_true, p_values)
+    y_true, filteredp_values = removeColumnsWithAllZeros(y_true, filteredp_values)
 
-    probabilities = calculateProbabilites(p_values)
+    probabilities = calculateProbabilites(filteredp_values)
 
     auc_score = roc_auc_score(y_true, probabilities)
     printt("{}: roc auc score for classifying the most associated regulon {}".format(name, auc_score))
 
 
-def calculateProbabilites(p_values):
-    sums = len(p_values.columns) - p_values.sum(axis = 1)
-    sums.map(lambda x: len(p_values.columns) - x)
-    probabilities = p_values.apply(lambda x: (1 - x) / sums[x.name],axis = 1)
+def calculateProbabilites(filteredp_values):
+    sums = len(filteredp_values.columns) - filteredp_values.sum(axis = 1)
+    sums.map(lambda x: len(filteredp_values.columns) - x)
+    probabilities = filteredp_values.apply(lambda x: (1 - x) / sums[x.name],axis = 1)
     return probabilities
 
-def removeColumnsWithAllZeros(y_true, p_values):
+def removeColumnsWithAllZeros(y_true, filteredp_values):
     # cannot run roc auc with empty class
     y_true_df = pd.DataFrame(y_true)
-    y_p_values_df = pd.DataFrame(p_values)
+    y_p_values_df = pd.DataFrame(filteredp_values)
 
     for i in range(len(y_true[0])):
         for j in range(len(y_true)):
@@ -171,23 +171,23 @@ def generateData(sample_size, gene_count, regulon_count, genes_mutated_count, ge
 
     # get random samples as samples with the mutation
     samples_with_mutation = int(sample_size * samples_mutated_rate)
-    mutated_samples = set()
-    availableSamples = list(range(sample_size))
-    for _ in range(samples_with_mutation):
-        random_sample_index = random.randint(0, len(availableSamples) - 1)
+    # for each mutated gene, get subset of samples
+    for key in mutationAssociations:
+        # inject causal association into random samples (number = samples_with_mutation)
+        for _ in range(samples_with_mutation):
+            availableSamples = list(range(sample_size))
+            random_sample_index = random.randint(0, len(availableSamples) - 1)
 
-        mutated_samples.add(availableSamples[random_sample_index])
-        del availableSamples[random_sample_index]
-
-    # inject causal association into data
-    for sample_index in mutated_samples:
-        for key in mutationAssociations:
+            # inject causal association
+            random_sample = availableSamples[random_sample_index]
             val = mutationAssociations[key]
             if random.uniform(0, 1) > miss_mutation_rate: # random distribution of not found mutation
-                gene_data[sample_index][key] = 1
-            regulon_data[sample_index][val[0]] = val[1]
+                gene_data[random_sample][key] = 1
+            regulon_data[random_sample][val[0]] = val[1]
             if random.uniform(0, 1) < miss_regulon_rate:
-                regulon_data[sample_index][val[0]] -= val[1] * random.randint(1, 2) # random distribution of associated regulon activity not being the expected
+                regulon_data[random_sample][val[0]] -= val[1] * random.randint(1, 2) # random distribution of associated regulon activity not being the expected
+
+            del availableSamples[random_sample_index]
 
     printt('finished generating data in {:.2f} minutes'.format((time.time() - start_time)/60.))
     return gene_data, regulon_data, mutationAssociations
@@ -196,11 +196,31 @@ def generateData(sample_size, gene_count, regulon_count, genes_mutated_count, ge
 def getPredictedMapping(p_values, regulon_data):
     predicted_mapping = {}
     gene_count = len(p_values)
+    sample_size = len(regulon_data)
     for gene_index in range(gene_count):
         row = p_values[gene_index]
         min_val = min(row)
 
         if min_val > 0:
+            min_index = np.where(row == min_val)
+
+            regulon_activity = []
+            for i in range(sample_size):
+                regulon_activity.append(regulon_data[i][min_index])
+            effect = stats.mode(regulon_activity).mode
+            predicted_mapping[gene_index] = [min_index[0][0], effect[0][0]]
+
+    return predicted_mapping
+
+def get_predicted_mapping(p_values, regulon_data, alpha):
+    predicted_mapping = {}
+    gene_count = len(p_values)
+    sample_size = len(regulon_data)
+    for gene_index in range(gene_count):
+        row = p_values[gene_index]
+        min_val = min(row)
+
+        if min_val < alpha:
             min_index = np.where(row == min_val)
 
             regulon_activity = []
@@ -241,60 +261,61 @@ if __name__ == "__main__":
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # generate and save cell data
 
-    sample_size = 300#3000
-    gene_count = 200#10000
-    regulon_count = 100#1000
-    genes_mutated_count = 10#100
-    samples_mutated_rate = 0.5 # percentage of samples with mutated genes
-    genes_random_rate = 0.01 # probability not mutated gene is observed as mutated
-    regulons_random_rate = 0.01 # random distribution of regulon activity among non-affected regulons
-    miss_mutation_rate = 0.1 # probability of there being a mutation but missing it
-    miss_regulon_rate = 0.1 # probability that activity of associated regulon is not expected
-    test = "mann whitney u test"
-
-    output_folder = './output/'
-
-    gene_data, regulon_data, mutation_associations = generateData(sample_size=sample_size, gene_count=gene_count,
-                                             regulon_count=regulon_count, genes_mutated_count=genes_mutated_count,
-                                             genes_random_rate=genes_random_rate, samples_mutated_rate=samples_mutated_rate,
-                                             regulons_random_rate=regulons_random_rate, miss_mutation_rate=miss_mutation_rate,
-                                                                  miss_regulon_rate=miss_regulon_rate)
-    dill.dump_session('./cell_data.dill')
+    # sample_size = 300
+    # gene_count = 200
+    # regulon_count = 100
+    # genes_mutated_count = 10
+    # samples_mutated_rate = 0.5 # percentage of samples with mutated genes
+    # genes_random_rate = 0.01 # probability not mutated gene is observed as mutated
+    # regulons_random_rate = 0.01 # random distribution of regulon activity among non-affected regulons
+    # miss_mutation_rate = 0.1 # probability of there being a mutation but missing it
+    # miss_regulon_rate = 0.1 # probability that activity of associated regulon is not expected
+    # test = "mann whitney u test"
+    #
+    # output_folder = './output/'
+    #
+    # gene_data, regulon_data, mutation_associations = generateData(sample_size=sample_size, gene_count=gene_count,
+    #                                          regulon_count=regulon_count, genes_mutated_count=genes_mutated_count,
+    #                                          genes_random_rate=genes_random_rate, samples_mutated_rate=samples_mutated_rate,
+    #                                          regulons_random_rate=regulons_random_rate, miss_mutation_rate=miss_mutation_rate,
+    #                                                               miss_regulon_rate=miss_regulon_rate)
+    # dill.dump_session('./cell_data.dill')
 
     # perform mann_whitney u test
     dill.load_session('./cell_data.dill')
     alpha = 0.05 / (gene_count * regulon_count)
     num_cores = multiprocessing.cpu_count()
-    p_values = mann_whitney_u_test_multiprocessing(gene_data, regulon_data, alpha, num_cores=num_cores)
-    correct = compareSets(p_values, mutation_associations, alpha)
+    pvalues = mann_whitney_u_test_multiprocessing(gene_data, regulon_data, alpha, num_cores=num_cores)
+    predicted_mapping = get_predicted_mapping(pvalues, regulon_data, alpha)
+    mwu_test_incorrect = calculatePercentage(mutation_associations, predicted_mapping, test)
+    auc_score(mutation_associations, predicted_mapping, pvalues, test, regulon_count, gene_count)
+
 
     end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     file_name = (datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
 
     # double check that os path exists
-    if not os.path.isdir(output_folder):
-        os.mkdir(output_folder)
-
-    with open(output_folder + file_name + '.txt', 'w') as file:
-        file.write('program started: {}\n'.format(start_time))
-        file.write('program ended: {}\n'.format(end_time))
-        file.write('time elapsed: {:.2f} minutes\n'.format((time.time() - start_time_timer)/60))
-        file.write('test: {}\n\n'.format(test))
-
-        file.write('Parameters: \n')
-        file.write('sample size: {}\n'.format(sample_size))
-        file.write('gene count: {}\n'.format(gene_count))
-        file.write('regulon count: {}\n'.format(regulon_count))
-        file.write('mutated genes count: {} ({:.2f}%)\n'.format(genes_mutated_count, genes_mutated_count/gene_count))
-        file.write('mutated samples count: {} ({:.2f}%)\n'.format(int(samples_mutated_rate * sample_size), samples_mutated_rate))
-        file.write('\n')
-        file.write('genes random rate: {}\n'.format(genes_random_rate))
-        file.write('regulons random rate: {}\n'.format(regulons_random_rate))
-        file.write('miss mutation rate: {}\n'.format(miss_mutation_rate))
-        file.write('miss regulon rate: {}\n'.format(miss_regulon_rate))
-        file.write('\n')
-        file.write('number correct: {}'.format(correct))
+    # if not os.path.isdir(output_folder):
+    #     os.mkdir(output_folder)
+    # # write output file
+    # with open(output_folder + file_name + '.txt', 'w') as file:
+    #     file.write('program started: {}\n'.format(start_time))
+    #     file.write('program ended: {}\n'.format(end_time))
+    #     file.write('time elapsed: {:.2f} minutes\n'.format((time.time() - start_time_timer)/60))
+    #     file.write('test: {}\n\n'.format(test))
+    #
+    #     file.write('Parameters: \n')
+    #     file.write('sample size: {}\n'.format(sample_size))
+    #     file.write('gene count: {}\n'.format(gene_count))
+    #     file.write('regulon count: {}\n'.format(regulon_count))
+    #     file.write('mutated genes count: {} ({:.2f}%)\n'.format(genes_mutated_count, genes_mutated_count/gene_count))
+    #     file.write('mutated samples count: {} ({:.2f}%)\n'.format(int(samples_mutated_rate * sample_size), samples_mutated_rate))
+    #     file.write('\n')
+    #     file.write('genes random rate: {}\n'.format(genes_random_rate))
+    #     file.write('regulons random rate: {}\n'.format(regulons_random_rate))
+    #     file.write('miss mutation rate: {}\n'.format(miss_mutation_rate))
+    #     file.write('miss regulon rate: {}\n'.format(miss_regulon_rate))
     # mwu_test_incorrect = calculatePercentage(mutation_associations, predicted_mapping, "mann whitney u test")
     # auc_score(mutation_associations, predicted_mapping, p_values, "mann whitney u test", regulon_count, gene_count)
 
