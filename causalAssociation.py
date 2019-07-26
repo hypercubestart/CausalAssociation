@@ -21,7 +21,7 @@ def printt(message):
     print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t {}".format(message)))
     return None
 
-def calculatePercentage(actual_mapping, predicted_mapping, name):
+def calculatePercentage(actual_mapping, predicted_mapping, name, file):
     number_correct = 0
     correct_effects = 0
     number_wrong = 0
@@ -35,11 +35,11 @@ def calculatePercentage(actual_mapping, predicted_mapping, name):
             number_wrong+=1
             wrong_variant_regulon_association.add(key)
 
-    printt("{}: \n\t correct: {}"
+    file.write("{}: \n\t correct: {}"
            "\n\t\t\t correct effects: {}"
            "\n\t wrong: {}"
            "\n\t ignore: {} "
-           "\n\t total: {}".
+           "\n\t total: {}\n".
            format(name, number_correct/len(actual_mapping),
                   np.float64(correct_effects)/number_correct,
                   number_wrong/len(actual_mapping),
@@ -47,7 +47,7 @@ def calculatePercentage(actual_mapping, predicted_mapping, name):
                   len(actual_mapping)))
     return wrong_variant_regulon_association
 
-def auc_score(actual_mapping, predicted_mapping, p_values, name, regulon_count, gene_count):
+def auc_score(actual_mapping, predicted_mapping, p_values, name, regulon_count, gene_count, file):
     y_true = [] # true classes
     filteredp_values = [] #probabilities
 
@@ -63,6 +63,9 @@ def auc_score(actual_mapping, predicted_mapping, p_values, name, regulon_count, 
 
     auc_score = roc_auc_score(y_true, probabilities)
     printt("{}: roc auc score for classifying the most associated regulon {}".format(name, auc_score))
+
+    file.write('roc auc score: {}'.format(auc_score))
+    return auc_score
 
 
 def calculateProbabilites(filteredp_values):
@@ -212,7 +215,7 @@ def getPredictedMapping(p_values, regulon_data):
 
     return predicted_mapping
 
-def get_predicted_mapping(p_values, regulon_data, alpha):
+def get_predicted_mapping(p_values, gene_data, regulon_data, alpha):
     predicted_mapping = {}
     gene_count = len(p_values)
     sample_size = len(regulon_data)
@@ -225,7 +228,8 @@ def get_predicted_mapping(p_values, regulon_data, alpha):
 
             regulon_activity = []
             for i in range(sample_size):
-                regulon_activity.append(regulon_data[i][min_index])
+                if gene_data[i][gene_index] == 1:
+                    regulon_activity.append(regulon_data[i][min_index])
             effect = stats.mode(regulon_activity).mode
             predicted_mapping[gene_index] = [min_index[0][0], effect[0][0]]
 
@@ -261,61 +265,61 @@ if __name__ == "__main__":
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # generate and save cell data
 
-    # sample_size = 300
-    # gene_count = 200
-    # regulon_count = 100
-    # genes_mutated_count = 10
-    # samples_mutated_rate = 0.5 # percentage of samples with mutated genes
-    # genes_random_rate = 0.01 # probability not mutated gene is observed as mutated
-    # regulons_random_rate = 0.01 # random distribution of regulon activity among non-affected regulons
-    # miss_mutation_rate = 0.1 # probability of there being a mutation but missing it
-    # miss_regulon_rate = 0.1 # probability that activity of associated regulon is not expected
-    # test = "mann whitney u test"
-    #
-    # output_folder = './output/'
-    #
-    # gene_data, regulon_data, mutation_associations = generateData(sample_size=sample_size, gene_count=gene_count,
-    #                                          regulon_count=regulon_count, genes_mutated_count=genes_mutated_count,
-    #                                          genes_random_rate=genes_random_rate, samples_mutated_rate=samples_mutated_rate,
-    #                                          regulons_random_rate=regulons_random_rate, miss_mutation_rate=miss_mutation_rate,
-    #                                                               miss_regulon_rate=miss_regulon_rate)
-    # dill.dump_session('./cell_data.dill')
+    sample_size = 300
+    gene_count = 200
+    regulon_count = 100
+    genes_mutated_count = 10
+    samples_mutated_rate = 0.5 # percentage of samples with mutated genes
+    genes_random_rate = 0.01 # probability not mutated gene is observed as mutated
+    regulons_random_rate = 0.01 # random distribution of regulon activity among non-affected regulons
+    miss_mutation_rate = 0.1 # probability of there being a mutation but missing it
+    miss_regulon_rate = 0.1 # probability that activity of associated regulon is not expected
+    test = "mann whitney u test"
+
+    output_folder = './output/'
+
+    gene_data, regulon_data, mutation_associations = generateData(sample_size=sample_size, gene_count=gene_count,
+                                             regulon_count=regulon_count, genes_mutated_count=genes_mutated_count,
+                                             genes_random_rate=genes_random_rate, samples_mutated_rate=samples_mutated_rate,
+                                             regulons_random_rate=regulons_random_rate, miss_mutation_rate=miss_mutation_rate,
+                                                                  miss_regulon_rate=miss_regulon_rate)
+    dill.dump_session('./cell_data.dill')
 
     # perform mann_whitney u test
     dill.load_session('./cell_data.dill')
     alpha = 0.05 / (gene_count * regulon_count)
     num_cores = multiprocessing.cpu_count()
     pvalues = mann_whitney_u_test_multiprocessing(gene_data, regulon_data, alpha, num_cores=num_cores)
-    predicted_mapping = get_predicted_mapping(pvalues, regulon_data, alpha)
-    mwu_test_incorrect = calculatePercentage(mutation_associations, predicted_mapping, test)
-    auc_score(mutation_associations, predicted_mapping, pvalues, test, regulon_count, gene_count)
-
+    predicted_mapping = get_predicted_mapping(pvalues, gene_data, regulon_data, alpha)
 
     end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     file_name = (datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
 
     # double check that os path exists
-    # if not os.path.isdir(output_folder):
-    #     os.mkdir(output_folder)
-    # # write output file
-    # with open(output_folder + file_name + '.txt', 'w') as file:
-    #     file.write('program started: {}\n'.format(start_time))
-    #     file.write('program ended: {}\n'.format(end_time))
-    #     file.write('time elapsed: {:.2f} minutes\n'.format((time.time() - start_time_timer)/60))
-    #     file.write('test: {}\n\n'.format(test))
-    #
-    #     file.write('Parameters: \n')
-    #     file.write('sample size: {}\n'.format(sample_size))
-    #     file.write('gene count: {}\n'.format(gene_count))
-    #     file.write('regulon count: {}\n'.format(regulon_count))
-    #     file.write('mutated genes count: {} ({:.2f}%)\n'.format(genes_mutated_count, genes_mutated_count/gene_count))
-    #     file.write('mutated samples count: {} ({:.2f}%)\n'.format(int(samples_mutated_rate * sample_size), samples_mutated_rate))
-    #     file.write('\n')
-    #     file.write('genes random rate: {}\n'.format(genes_random_rate))
-    #     file.write('regulons random rate: {}\n'.format(regulons_random_rate))
-    #     file.write('miss mutation rate: {}\n'.format(miss_mutation_rate))
-    #     file.write('miss regulon rate: {}\n'.format(miss_regulon_rate))
+    if not os.path.isdir(output_folder):
+        os.mkdir(output_folder)
+    # write output file
+    with open(output_folder + file_name + '.txt', 'w') as file:
+        file.write('program started: {}\n'.format(start_time))
+        file.write('program ended: {}\n'.format(end_time))
+        file.write('time elapsed: {:.2f} minutes\n'.format((time.time() - start_time_timer)/60))
+        file.write('test: {}\n\n'.format(test))
+
+        file.write('Parameters: \n')
+        file.write('sample size: {}\n'.format(sample_size))
+        file.write('gene count: {}\n'.format(gene_count))
+        file.write('regulon count: {}\n'.format(regulon_count))
+        file.write('mutated genes count: {} ({:.2f}%)\n'.format(genes_mutated_count, genes_mutated_count/gene_count))
+        file.write('mutated samples count: {} ({:.2f}%)\n'.format(int(samples_mutated_rate * sample_size), samples_mutated_rate))
+        file.write('\n')
+        file.write('genes random rate: {}\n'.format(genes_random_rate))
+        file.write('regulons random rate: {}\n'.format(regulons_random_rate))
+        file.write('miss mutation rate: {}\n'.format(miss_mutation_rate))
+        file.write('miss regulon rate: {}\n'.format(miss_regulon_rate))
+
+        mwu_test_incorrect = calculatePercentage(mutation_associations, predicted_mapping, test, file)
+        auc_score(mutation_associations, predicted_mapping, pvalues, test, regulon_count, gene_count, file)
     # mwu_test_incorrect = calculatePercentage(mutation_associations, predicted_mapping, "mann whitney u test")
     # auc_score(mutation_associations, predicted_mapping, p_values, "mann whitney u test", regulon_count, gene_count)
 
