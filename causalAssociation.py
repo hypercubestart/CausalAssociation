@@ -14,6 +14,7 @@ import dill
 from t_test import t_test
 import time
 import multiprocessing
+import os
 from mann_whitney_u_test import mann_whitney_u_test, mann_whitney_u_test_multiprocessing
 
 def printt(message):
@@ -236,19 +237,22 @@ def compareSets(pvalues, mutation_associations, alpha):
     return correct
 
 if __name__ == "__main__":
+    start_time_timer = time.time()
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     # generate and save cell data
 
-    sample_size = 3000
-    gene_count = 10000
-    regulon_count = 1000
-    genes_mutated_count = 100
+    sample_size = 300#3000
+    gene_count = 200#10000
+    regulon_count = 100#1000
+    genes_mutated_count = 10#100
     samples_mutated_rate = 0.5 # percentage of samples with mutated genes
     genes_random_rate = 0.01 # probability not mutated gene is observed as mutated
     regulons_random_rate = 0.01 # random distribution of regulon activity among non-affected regulons
     miss_mutation_rate = 0.1 # probability of there being a mutation but missing it
     miss_regulon_rate = 0.1 # probability that activity of associated regulon is not expected
     test = "mann whitney u test"
+
+    output_folder = './output/'
 
     gene_data, regulon_data, mutation_associations = generateData(sample_size=sample_size, gene_count=gene_count,
                                              regulon_count=regulon_count, genes_mutated_count=genes_mutated_count,
@@ -262,23 +266,35 @@ if __name__ == "__main__":
     alpha = 0.05 / (gene_count * regulon_count)
     num_cores = multiprocessing.cpu_count()
     p_values = mann_whitney_u_test_multiprocessing(gene_data, regulon_data, alpha, num_cores=num_cores)
-    predicted_sets = compareSets(p_values, mutation_associations, alpha)
+    correct = compareSets(p_values, mutation_associations, alpha)
+
+    end_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     file_name = (datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S"))
-    with open('./output/{}'.format(file_name), 'w') as file:
+
+    # double check that os path exists
+    if not os.path.isdir(output_folder):
+        os.mkdir(output_folder)
+
+    with open(output_folder + file_name + '.txt', 'w') as file:
         file.write('program started: {}\n'.format(start_time))
+        file.write('program ended: {}\n'.format(end_time))
+        file.write('time elapsed: {:.2f} minutes\n'.format((time.time() - start_time_timer)/60))
         file.write('test: {}\n\n'.format(test))
+
         file.write('Parameters: \n')
         file.write('sample size: {}\n'.format(sample_size))
         file.write('gene count: {}\n'.format(gene_count))
         file.write('regulon count: {}\n'.format(regulon_count))
-        file.write('mutated genes count: {} ({.2f}%)\n'.format(genes_mutated_count, genes_mutated_count/gene_count))
-        file.write('mutated samples count: {} ({.2f}%)\n'.format(int(samples_mutated_rate * sample_size), samples_mutated_rate))
+        file.write('mutated genes count: {} ({:.2f}%)\n'.format(genes_mutated_count, genes_mutated_count/gene_count))
+        file.write('mutated samples count: {} ({:.2f}%)\n'.format(int(samples_mutated_rate * sample_size), samples_mutated_rate))
         file.write('\n')
         file.write('genes random rate: {}\n'.format(genes_random_rate))
         file.write('regulons random rate: {}\n'.format(regulons_random_rate))
         file.write('miss mutation rate: {}\n'.format(miss_mutation_rate))
         file.write('miss regulon rate: {}\n'.format(miss_regulon_rate))
+        file.write('\n')
+        file.write('number correct: {}'.format(correct))
     # mwu_test_incorrect = calculatePercentage(mutation_associations, predicted_mapping, "mann whitney u test")
     # auc_score(mutation_associations, predicted_mapping, p_values, "mann whitney u test", regulon_count, gene_count)
 
