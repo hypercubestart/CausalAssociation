@@ -16,6 +16,8 @@ import time
 import multiprocessing
 import os
 from mann_whitney_u_test import mann_whitney_u_test, mann_whitney_u_test_multiprocessing
+import operator
+from collections import Counter
 
 def printt(message):
     print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t {}".format(message)))
@@ -237,14 +239,23 @@ def get_predicted_mapping(p_values, gene_data, regulon_data, alpha):
         min_val = min(row)
 
         if min_val < alpha:
-            min_index = np.where(row == min_val)
+            min_index = np.where(row == min_val)[0][0]
 
-            regulon_activity = []
+            regulon_activity_mutated = []
+            regulon_activity_normal = []
             for i in range(sample_size):
                 if gene_data[i][gene_index] == 1:
-                    regulon_activity.append(regulon_data[i][min_index])
-            effect = stats.mode(regulon_activity).mode
-            predicted_mapping[gene_index] = [min_index[0][0], effect[0][0]]
+                    regulon_activity_mutated.append(regulon_data[i][min_index])
+                else:
+                    regulon_activity_normal.append(regulon_data[i][min_index])
+            counts = Counter(regulon_activity_mutated)
+            sorted_counts = sorted(counts.items(), key=operator.itemgetter(1), reverse=True)
+            mode_normal_regulon = stats.mode(regulon_activity_normal, axis=None).mode[0]
+
+            index = 0
+            if (sorted_counts[0][0] == mode_normal_regulon):
+                index = 1
+            predicted_mapping[gene_index] = [min_index, sorted_counts[index][0]]
 
     return predicted_mapping
 
@@ -274,15 +285,15 @@ def compareSets(pvalues, mutation_associations, alpha):
     return correct
 
 def run_tests():
-    sample_size = 3000
-    gene_count = 10000
-    regulon_count = 1000
-    genes_mutated_count = 100
+    sample_size = 300
+    gene_count = 1000
+    regulon_count = 100
+    genes_mutated_count = 10
     samples_mutated_rate = [0.2] # percentage of samples with mutated genes
     genes_random_rate = [0.2] # probability not mutated gene is observed as mutated
-    regulons_random_rate = [0.2, 0.5, 0.8] # random distribution of regulon activity among non-affected regulons
-    miss_mutation_rate = [0.2, 0.5, 0.8] # probability of there being a mutation but missing it
-    miss_regulon_rate = [0.2, 0.5, 0.8] # probability that activity of associated regulon is not expected
+    regulons_random_rate = [0.2] # random distribution of regulon activity among non-affected regulons
+    miss_mutation_rate = [0.2,] # probability of there being a mutation but missing it
+    miss_regulon_rate = [0.2,] # probability that activity of associated regulon is not expected
 
     for i in samples_mutated_rate:
         for j in genes_random_rate:
@@ -299,7 +310,7 @@ def causal_association(sample_size, gene_count, regulon_count, genes_mutated_cou
 
     test = "mann whitney u test"
 
-    output_folder = './output/v2/'
+    output_folder = './output/'
 
     gene_data, regulon_data, mutation_associations = generateData(sample_size=sample_size, gene_count=gene_count,
                                              regulon_count=regulon_count, genes_mutated_count=genes_mutated_count,
