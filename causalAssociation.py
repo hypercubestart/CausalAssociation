@@ -285,15 +285,15 @@ def compareSets(pvalues, mutation_associations, alpha):
     return correct
 
 def run_tests():
-    sample_size = 300
-    gene_count = 1000
-    regulon_count = 100
-    genes_mutated_count = 10
-    samples_mutated_rate = [0.2] # percentage of samples with mutated genes
-    genes_random_rate = [0.2] # probability not mutated gene is observed as mutated
-    regulons_random_rate = [0.2] # random distribution of regulon activity among non-affected regulons
-    miss_mutation_rate = [0.2,] # probability of there being a mutation but missing it
-    miss_regulon_rate = [0.2,] # probability that activity of associated regulon is not expected
+    sample_size = 3000
+    gene_count = 10000
+    regulon_count = 1000
+    genes_mutated_count = 100
+    samples_mutated_rate = [0.05] # percentage of samples with mutated genes 0.05-0.15
+    genes_random_rate = [0.05] # probability not mutated gene is observed as mutated 0.05
+    regulons_random_rate = [0.1] # random distribution of regulon activity among non-affected regulons 0.1
+    miss_mutation_rate = [0.5] # probability of there being a mutation but missing it 0.1 - 0.5
+    miss_regulon_rate = [0.15] # probability that activity of associated regulon is not expected 0.05 - 0.15
 
     for i in samples_mutated_rate:
         for j in genes_random_rate:
@@ -352,6 +352,7 @@ def causal_association(sample_size, gene_count, regulon_count, genes_mutated_cou
         try:
             mwu_test_incorrect = calculatePercentage(mutation_associations, predicted_mapping, test, file)
             auc_score(mutation_associations, predicted_mapping, pvalues, test, regulon_count, gene_count, file)
+            dill.dump_session(output_folder + file_name + '.dill')
         except:
             dill.dump_session(output_folder + file_name + '.dill')
 
