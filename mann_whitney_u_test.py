@@ -138,4 +138,3 @@ def calculateMWU(geneIndex):
              pvalues[regulonIndex] = 1
 
     return pvalues
-
