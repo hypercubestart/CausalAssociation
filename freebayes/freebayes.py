@@ -3,6 +3,8 @@ import multiprocessing
 import os
 import time
 
+# use freebayes to generate Variant Call Files (VCF) from BAM file for each individual single cell
+
 def cell_analyzer(arguments):
     start_time_timer = time.time()
     CELL_BARCODE = arguments
