@@ -90,7 +90,7 @@ def printt(message):
 # 0. user defined variables
 selected_cellIDs_file='/Volumes/omics4tb2/alomana/projects/i18/results/deconvolution/scanpy/species.cellIDs.run2.001.pickle'
 fasta_reference_file='/Volumes/omics4tb2/alomana/software/cellRanger/data/refdata-cellranger-mm10-3.0.0/fasta/genome.fa'
-subset_dir='/Volumes/omics4tb2/alomana/projects/i18/results/deconvolution/freebayes/'
+subset_dir='/home/aliu/omics4tb2/aliu/projects/causalAssociation/results/freebayes/'
 threads=8
 
 # 1. recover mouse cellIDs

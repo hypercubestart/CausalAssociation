@@ -292,7 +292,7 @@ def run_tests():
     samples_mutated_rate = [0.05] # percentage of samples with mutated genes 0.05-0.15
     genes_random_rate = [0.05] # probability not mutated gene is observed as mutated 0.05
     regulons_random_rate = [0.1] # random distribution of regulon activity among non-affected regulons 0.1
-    miss_mutation_rate = [0.5] # probability of there being a mutation but missing it 0.1 - 0.5
+    miss_mutation_rate = [0.7, 0.95] # probability of there being a mutation but missing it 0.1 - 0.5
     miss_regulon_rate = [0.15] # probability that activity of associated regulon is not expected 0.05 - 0.15
 
     for i in samples_mutated_rate:
