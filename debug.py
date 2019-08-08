@@ -1,7 +1,7 @@
-import miner2.miner2
-import miner2.miner2.preprocess
-import miner2.miner2.coexpression
-import miner2.miner2.mechanistic_inference
+import miner2
+import miner2.coexpression
+import miner2.preprocess
+import miner2.mechanistic_inference
 import pandas as pd
 import os
 
