@@ -1,3 +1,5 @@
+# Quantify data using kallisto
+# currently not being used in pipeline
 import os, datetime
 
 WORKDIR = "/Volumes/omics4tb2/aliu/projects/causalAssociation/"

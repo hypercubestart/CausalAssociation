@@ -1,12 +1,19 @@
+# file for miscellaneous functions and work
 import csv
 import os
 
 def findFileName(start, target_dir):
+    """return first occurence of filename that starts with start and in target_dir
+    :param start: string that filename starts with
+    :param target_dir: target directory
+    :return: full filename
+    """
     for filename in os.listdir(target_dir):
         if filename.startswith(start):
             return filename
 
 def parseFiles():
+    """get absolute path of fastq files"""
     f = open("/home/aliu/Projects/CausalAssociation/data/rawData/SRR_USE_LIST.txt", "r")
     f = f.read().splitlines()
     lines = []
@@ -16,6 +23,8 @@ def parseFiles():
     print(",".join(lines))
 
 def combineCSVFiles():
+    """combine SRR and GCM data into single csv file"""
+
     OMICS4TB2 = "/home/aliu/omics4tb2" #"/proj/omics4tb2"
     HOME = "/home"
     SCC_USE_LIST_FILE = HOME + "/aliu/Projects/causalAssociation/data/rawData/SRR_USE_LIST.txt"

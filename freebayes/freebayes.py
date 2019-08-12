@@ -6,6 +6,9 @@ import time
 # use freebayes to generate Variant Call Files (VCF) from BAM file for each individual single cell
 
 def cell_analyzer(arguments):
+    """Generate VCF file using freebayes
+    :param arguments: string of cell_barcode
+    """
     start_time_timer = time.time()
     CELL_BARCODE = arguments
 
@@ -39,6 +42,7 @@ if __name__ == "__main__":
     for CELL_FOLDER_NAME in os.listdir(SAMPLE_FOLDER):
         CELL_FOLDERS.append(CELL_FOLDER_NAME)
 
+    # create multiprocessing work load
     NUM_CORES = 8
     pool = multiprocessing.Pool(NUM_CORES)
     pool.map(cell_analyzer, CELL_FOLDERS)

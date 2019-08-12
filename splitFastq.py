@@ -1,4 +1,4 @@
-# split fastq file by single cells
+# split fastq file by single cell barcode
 
 import os, multiprocessing
 import datetime
@@ -6,13 +6,20 @@ import csv
 import time
 
 def printt(message):
-
+    """Print message with timestamp
+        :param message: string
+    """
     print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t {}".format(message)))
 
     return None
 
 # def splitFastQ(fastq_file):
-#     # too slow!!!
+#     """Split single fastq file into single cells by unique cell barcodes
+#
+#     :param fastq_file: fastq file name
+#     :return: None
+#     """
+#     # ---------------  too slow!!! --------------
 #     if not os.path.isdir("/proj/omics4tb2/aliu/projects/causalAssociation/data/scData/" + fastq_file):
 #         os.mkdir("/proj/omics4tb2/aliu/projects/causalAssociation/data/scData/" + fastq_file)
 #
@@ -47,12 +54,18 @@ def printt(message):
 #     return None
 
 def appendLineToFile(line, file):
+    """Write line to file, if file doens't exist creates file as well"""
+    # currently unused
     if not os.path.isfile(file):
         open(file, "w")
     with open(file, "a") as file:
         file.write(line)
 
 def filterFastQ(arguments):
+    """Filter Fastq file by single cell barcodes in digital expression matrices provided in study
+    :param arguments: [fastq_file name, cell barcode]
+    :return None
+    """
     fastq_file = arguments[0]
     cell_barcodes = arguments[1]
 
@@ -82,8 +95,10 @@ def filterFastQ(arguments):
                         append-=1
                     i += 1
         printt('done with cell {} from fastq file {} in {:.2f} minutes'.format(cell_barcode, fastq_file, (time.time() - start_time) / 60.))
+    return None
 
 def getCellBarcodes(dem_file_path):
+    """Get cell barcodes from digital expression matrix"""
     with open(dem_file_path) as csvfile:
         in_txt = csv.reader(csvfile, delimiter = '\t')
         for line in in_txt:
@@ -94,6 +109,11 @@ def getCellBarcodes(dem_file_path):
             return set(cell_barcodes)
 
 def findFileName(start, target_dir):
+    """return first occurence of filename that starts with start and in target_dir
+    :param start: string that filename starts with
+    :param target_dir: target directory
+    :return: full filename
+    """
     for filename in os.listdir(target_dir):
         if filename.startswith(start):
             return filename
@@ -106,6 +126,8 @@ if __name__ == "__main__":
     
     SCC_IDENTIFIERS = []
     GCM_IDENTIFIERS = []
+
+    # for each fastq file, find appropriate dem file
     with open(SCC_USE_LIST_FILE, "r") as file: 
         lines = file.read().splitlines()
         SCC_IDENTIFIERS = lines
@@ -117,6 +139,7 @@ if __name__ == "__main__":
 
     file_names = list(zip(SCC_IDENTIFIERS, GCM_IDENTIFIERS))
 
+    # split workload by splitting 20 files on eager, 20 on local machine
     file_names = file_names[20:] #[:20] for eager, [20:] for local
 
     args = [[x[0], getCellBarcodes(x[1])] for x in file_names]

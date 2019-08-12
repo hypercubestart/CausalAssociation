@@ -7,10 +7,19 @@ import dill
 import numpy
 
 def printt(message):
+    """Print message with timestamp
+        :param message: string
+    """
     print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t {}".format(message)))
     return None
 
 def t_test(cell_data, variant_count, incorrect_mapping = None):
+    """Causal association test using t test
+    :param cell_data: [SingleCell]
+    :param variant_count: integer number of variants
+    :param incorrect_mapping: if not None, prints out incorrect associations
+    """
+    #TODO: SHOULD USE MANN WHITNEY U TEST OVER T-TEST
     threshold = 0.01
     ANOVA_threshold = 0.01
     predicted_mapping = {}

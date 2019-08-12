@@ -1,5 +1,6 @@
 # algorithm to identify causal associations between mutations and regulons
 # ie. find relationships where a mutation cases a change in regulon activity
+# given the variants and gene expression of patients (derived using scRNA-seq)
 
 # Genes and variants are used interchangeably because we decided to reduce all variants on a single gene to the gene
 # to reduce the sample size
@@ -164,7 +165,7 @@ def plot_roc_curve(fpr, tpr):
 #     :param regulons_count: number of regulons
 #     :param mutation_not_found_rate: rate that mutation not found
 #     :param noise: rate of random noise within regulon activity
-#     :returns: cell_data [single_cell] and dict {variant_index -> [regulon_index, effect]}
+#     :returns: cell_data [SingleCell] and dict {variant_index -> [regulon_index, effect]}
 #     """
 #     # len = # of mutations and number of patients
 #     cell_data = []
@@ -280,7 +281,10 @@ def generateData(sample_size, gene_count, regulon_count, genes_mutated_count, ge
 def get_predicted_mapping(p_values, gene_data, regulon_data, alpha):
     """Use p-values to determine statistically significant associations between genes and regulons
     :param p_values: matrix of p-values [variants * regulons]
-    :
+    :param gene_data: sample_size * gene_count matrix of gene data, 0 = non-mutated, 1 = mutated
+    :param regulon_data: sample_size * regulon_count matrix of regulon activity, -1 = downregulated, 0 = normal, 1 = upregulated
+    :param alpha: significance level
+    :return: dict {variant_index -> [regulon_index, effect]}
     """
     predicted_mapping = {}
     gene_count = len(p_values)
@@ -310,37 +314,13 @@ def get_predicted_mapping(p_values, gene_data, regulon_data, alpha):
 
     return predicted_mapping
 
-def compareSets(pvalues, mutation_associations, alpha):
-    gene_set = set()
-    regulon_set = set()
-
-    gene_count = len(pvalues)
-    regulon_count = len(pvalues[0])
-
-    for gene_index in range(gene_count):
-        for regulon_index in range(regulon_count):
-            if pvalues[gene_index][regulon_index] < alpha:
-                gene_set.add(gene_index)
-                regulon_set.add(regulon_index)
-
-    printt("size of predicted mutated gene set: {}".format(len(gene_set)))
-    printt("size of predicted mutated regulon set: {}".format(len(regulon_set)))
-    printt("size of actual mutated regulon set: {}".format(len(mutation_associations)))
-
-    correct = 0
-    for gene_index in gene_set:
-        if gene_index in mutation_associations and mutation_associations[gene_index][0] in regulon_set:
-            correct+=1
-
-    printt("number correct: {}/{}".format(correct, len(mutation_associations)))
-    return correct
-
 def run_tests():
+    """Run series of tests to test robustness of algorithm"""
     sample_size = 3000
     gene_count = 10000
     regulon_count = 1000
     genes_mutated_count = 100
-    samples_mutated_rate = [0.05] # percentage of samples with mutated genes 0.05-0.15
+    samples_mutated_rate = [0.05] # percentage of samples with mutated genes, we expect 0.05-0.15
     genes_random_rate = [0.05] # probability not mutated gene is observed as mutated 0.05
     regulons_random_rate = [0.1] # random distribution of regulon activity among non-affected regulons 0.1
     miss_mutation_rate = [0.7, 0.95] # probability of there being a mutation but missing it 0.1 - 0.5
@@ -354,11 +334,24 @@ def run_tests():
                         causal_association(sample_size, gene_count, regulon_count, genes_mutated_count, i, j, k, l, m)
                         print('\n')
 
-def causal_association(sample_size, gene_count, regulon_count, genes_mutated_count, samples_mutated_rate, genes_random_rate, regulons_random_rate, miss_mutation_rate, miss_regulon_rate):
+def causal_association(sample_size, gene_count, regulon_count, genes_mutated_count, samples_mutated_rate,
+                       genes_random_rate, regulons_random_rate, miss_mutation_rate, miss_regulon_rate):
+    """Run Causal Association algorithm
+    :param sample_size: number of patients
+    :param gene_count: number of genes (or variants)
+    :param regulon_count: number of regulons
+    :param genes_mutated_count: number of genes with variants
+    :param genes_random_rate: probability not mutated gene is observed as mutated
+    :param samples_mutated_rate: percentage of samples with mutated genes
+    :param regulons_random_rate: random distribution of regulon activity among non-affected regulons
+    :param miss_mutation_rate: probability of there being a mutation but missing it
+    :param miss_regulon_rate: probability that activity of associated regulon is not expected
+    :return: None
+    """
     start_time_timer = time.time()
     start_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    # generate cell data
 
+    # generate cell data
     test = "mann whitney u test"
 
     output_folder = './output/'
@@ -368,7 +361,7 @@ def causal_association(sample_size, gene_count, regulon_count, genes_mutated_cou
                                              genes_random_rate=genes_random_rate, samples_mutated_rate=samples_mutated_rate,
                                              regulons_random_rate=regulons_random_rate, miss_mutation_rate=miss_mutation_rate,
                                                                   miss_regulon_rate=miss_regulon_rate)
-
+    # Bonferroni correction method for statistical test using multiple comparisons
     alpha = 0.05 / (gene_count * regulon_count)
     num_cores = multiprocessing.cpu_count()
     pvalues = mann_whitney_u_test_multiprocessing(gene_data, regulon_data, alpha, num_cores=num_cores)
@@ -406,7 +399,7 @@ def causal_association(sample_size, gene_count, regulon_count, genes_mutated_cou
             dill.dump_session(output_folder + file_name + '.dill')
         except:
             dill.dump_session(output_folder + file_name + '.dill')
-
+    return None
 if __name__ == "__main__":
     run_tests()
     # start_time_timer = time.time()
@@ -471,7 +464,7 @@ if __name__ == "__main__":
     # # mwu_test_incorrect = calculatePercentage(mutation_associations, predicted_mapping, "mann whitney u test")
     # # auc_score(mutation_associations, predicted_mapping, p_values, "mann whitney u test", regulon_count, gene_count)
     #
-    # # perform t test
+    # # perform t test //TODO: old and not updated
     # # t_test_predicted, t_test_p_values = t_test(cell_data, variant_count)
     # # t_test_incorrect = calculatePercentage(actual_mapping, t_test_predicted, "t-test")
     # # auc_score(actual_mapping, t_test_predicted, t_test_p_values, "t-test", regulon_count, variant_count)
@@ -488,6 +481,10 @@ if __name__ == "__main__":
 
 
 def chisquare(cell_data):
+    """Use Chi-Square to test for causal association
+    :param cell_data: List of SingleCell
+    """
+    #TODO: frequency of each variation has to be > 5, so oftentimes chi-square doens't work
     threshold = 0.10
     contingency_table_min_freq = 1
     predicted_mapping = {}

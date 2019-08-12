@@ -1,3 +1,7 @@
+# contains class SingleCell, which is used in previous generateData function
+# as well as in chi-square and t-test tests
+
+# wraps variant data and regulon activity from a patient into a single instance of SingleCell
 import numpy
 
 class SingleCell:

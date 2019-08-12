@@ -10,6 +10,9 @@ def printt(message):
     return None
 
 def STAR_map_dir(argument):
+    """Map fastq file using STAR
+    :param argument: [fastq_file_path, STAR output folder]
+    """
     start_time = time.time()
     fastq_file_path = argument[0]
     fastq_output_path = argument[1]
