@@ -5,5 +5,5 @@
 *.dill
 /output/
 /venv/
-/miner2/
+/miner2-master/
 /i18-master/
