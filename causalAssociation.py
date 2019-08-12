@@ -1,3 +1,10 @@
+# algorithm to identify causal associations between mutations and regulons
+# ie. find relationships where a mutation cases a change in regulon activity
+
+# Genes and variants are used interchangeably because we decided to reduce all variants on a single gene to the gene
+# to reduce the sample size
+
+# import dependencies
 import numpy as np
 import random
 import datetime
@@ -11,19 +18,31 @@ from sklearn.preprocessing import label_binarize
 import matplotlib.pyplot as plt
 import pandas as pd
 import dill
-from t_test import t_test
 import time
 import multiprocessing
 import os
-from mann_whitney_u_test import mann_whitney_u_test, mann_whitney_u_test_multiprocessing
 import operator
 from collections import Counter
 
+# import statistical tests
+from t_test import t_test
+from mann_whitney_u_test import mann_whitney_u_test, mann_whitney_u_test_multiprocessing
+
 def printt(message):
+    """Print message with timestamp
+        :param message: string
+    """
     print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S \t {}".format(message)))
     return None
 
 def calculatePercentage(actual_mapping, predicted_mapping, name, file):
+    """Calculate percentage of correct associations
+        :param actual_mapping: dictionary {variant_index -> [regulon_index, effect]
+        :param predicted_mapping: dictionary {variant_index -> [regulon_index, effect]
+        :param name: string of statistical test
+        :param file: File object to write out
+        :return set of variant_indices of incorrect associations
+    """
     number_correct = 0
     correct_effects = 0
     number_wrong = 0
@@ -61,6 +80,16 @@ def calculatePercentage(actual_mapping, predicted_mapping, name, file):
     return wrong_variant_regulon_association
 
 def auc_score(actual_mapping, predicted_mapping, p_values, name, regulon_count, gene_count, file):
+    """Calculate AUC (area under the curve) score
+        :param actual_mapping: dictionary {variant_index -> [regulon_index, effect]}
+        :param predicted_mapping: dictionary {variant_index -> [regulon_index, effect]}
+        :param p_values: matrix of p-values [variants * regulons]
+        :param name: string of statistical test
+        :param regulon_count: integer number of regulons
+        :param gene_count: integer number of variants (assume each variant specific to single gene)
+        :param file: File object to write out
+        :return auc score
+    """
     y_true = [] # true classes
     filteredp_values = [] #probabilities
 
@@ -84,13 +113,22 @@ def auc_score(actual_mapping, predicted_mapping, p_values, name, regulon_count, 
 
 
 def calculateProbabilites(filteredp_values):
+    """Calculate probabilities using p-values
+        :param filteredp_values: matrix of p-values [variants * regulons]
+        :return DataFrame of probabilities [variants * regulons] where df[i, j] is probability variant i is associated with regulon j
+    """
     filteredp_values = pd.DataFrame(filteredp_values)
     sums = len(filteredp_values.columns) - filteredp_values.sum(axis = 1)
     sums.map(lambda x: len(filteredp_values.columns) - x)
-    probabilities = filteredp_values.apply(lambda x: (1 - x) / sums[x.name],axis = 1)
+    probabilities = filteredp_values.apply(lambda x: (1 - x) / sums[x.name], axis = 1)
     return probabilities
 
 def removeColumnsWithAllZeros(y_true, df):
+    """Filter out columns in binary encoding of classes where entire column is 0
+    :param y_true: list-like result of transformation for fixed set of labels into 0s and 1s
+    :param df: DataFrame to remove same columns as in y_true
+    :return: DataFrame, DataFrame
+    """
     # cannot run roc auc with empty class
     y_true_df = pd.DataFrame(y_true)
 
@@ -105,6 +143,11 @@ def removeColumnsWithAllZeros(y_true, df):
     return y_true_df, df
 
 def plot_roc_curve(fpr, tpr):
+    """Plot Roc Curve
+    :param fpr: false positive rate
+    :param tpr: true positive rate
+    """
+    #TODO: untested and unused
     plt.plot(fpr, tpr, color='orange', label='ROC')
     plt.plot([0, 1], [0, 1], color='darkblue', linestyle='--')
     plt.xlabel('False Positive Rate')
@@ -114,6 +157,15 @@ def plot_roc_curve(fpr, tpr):
     plt.show()
 
 # def generateData(mutation_rate = 0.1, variant_count=10, sample_size = 1000, regulons_count = 200, mutation_not_found_rate = 0.2, noise=0.2):
+#     """Previous function used to generate sample data of variant to regulon associations
+#     :param mutation_rate: rate at which mutation occurs
+#     :param variant_count: number of variants to have one-to-one association with regulon
+#     :param sample_size: number of patients
+#     :param regulons_count: number of regulons
+#     :param mutation_not_found_rate: rate that mutation not found
+#     :param noise: rate of random noise within regulon activity
+#     :returns: cell_data [single_cell] and dict {variant_index -> [regulon_index, effect]}
+#     """
 #     # len = # of mutations and number of patients
 #     cell_data = []
 #
@@ -146,7 +198,22 @@ def plot_roc_curve(fpr, tpr):
 #
 #     return cell_data, dict
 
-def generateData(sample_size, gene_count, regulon_count, genes_mutated_count, genes_random_rate, samples_mutated_rate, regulons_random_rate, miss_mutation_rate, miss_regulon_rate):
+def generateData(sample_size, gene_count, regulon_count, genes_mutated_count, genes_random_rate, samples_mutated_rate,
+                 regulons_random_rate, miss_mutation_rate, miss_regulon_rate):
+    """ Generate sample data of variant to regulon associations
+
+    :param sample_size: number of patients
+    :param gene_count: number of genes (or variants)
+    :param regulon_count: number of regulons
+    :param genes_mutated_count: number of genes with variants
+    :param genes_random_rate: probability not mutated gene is observed as mutated
+    :param samples_mutated_rate: percentage of samples with mutated genes
+    :param regulons_random_rate: random distribution of regulon activity among non-affected regulons
+    :param miss_mutation_rate: probability of there being a mutation but missing it
+    :param miss_regulon_rate: probability that activity of associated regulon is not expected
+    :returns: (sample_size * gene_count matrix of gene information, sample_size * regulon_count matrix of regulon activity, {variant_index -> [regulon_index, effect]})
+    :rtype: (numpy.ndarray, numpy.ndarray, dictionary)
+    """
     printt('starting to generate data...')
     start_time = time.time()
 
@@ -210,27 +277,11 @@ def generateData(sample_size, gene_count, regulon_count, genes_mutated_count, ge
     printt('finished generating data in {:.2f} minutes'.format((time.time() - start_time)/60.))
     return gene_data, regulon_data, mutationAssociations
 
-
-def getPredictedMapping(p_values, regulon_data):
-    predicted_mapping = {}
-    gene_count = len(p_values)
-    sample_size = len(regulon_data)
-    for gene_index in range(gene_count):
-        row = p_values[gene_index]
-        min_val = min(row)
-
-        if min_val > 0:
-            min_index = np.where(row == min_val)
-
-            regulon_activity = []
-            for i in range(sample_size):
-                regulon_activity.append(regulon_data[i][min_index])
-            effect = stats.mode(regulon_activity).mode
-            predicted_mapping[gene_index] = [min_index[0][0], effect[0][0]]
-
-    return predicted_mapping
-
 def get_predicted_mapping(p_values, gene_data, regulon_data, alpha):
+    """Use p-values to determine statistically significant associations between genes and regulons
+    :param p_values: matrix of p-values [variants * regulons]
+    :
+    """
     predicted_mapping = {}
     gene_count = len(p_values)
     sample_size = len(regulon_data)
