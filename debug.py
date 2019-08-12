@@ -1,9 +1,8 @@
-import miner2
-import miner2.coexpression
-import miner2.preprocess
 import miner2.mechanistic_inference
-import pandas as pd
-import os
+import dill
 
-EXPRESSION_DATA_FILE = '/home/aliu/omics4tb2/aliu/projects/causalAssociation/results/expected/GSM3587977_AML707B-D97.dem.txt'
-expression_data, conversion_table = miner2.miner2.preprocess.main(EXPRESSION_DATA_FILE)
+results_dir='./results/GSM3587977_AML707B/'
+dill.load_session(results_dir+'info/bottle.dill')
+
+axes = miner2.mechanistic_inference.get_principal_df(revised_clusters,expression_data,subkey=None,min_number_genes=1)
+mechanistic_output = miner2.mechanistic_inference.enrichment(axes,revised_clusters,expression_data,correlation_threshold=min_correlation,num_cores=num_cores)
