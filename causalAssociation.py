@@ -24,6 +24,7 @@ import multiprocessing
 import os
 import operator
 from collections import Counter
+import scikitplot as skplt
 
 # import statistical tests
 from t_test import t_test
@@ -108,7 +109,7 @@ def auc_score(actual_mapping, predicted_mapping, p_values, name, regulon_count, 
 
     auc_score = roc_auc_score(y_true, probabilities)
     printt("{}: roc auc score for classifying the most associated regulon {}".format(name, auc_score))
-
+    plot_multi_class_roc_curve(y_true, probabilities)
     file.write('roc auc score: {}'.format(auc_score))
     return auc_score
 
@@ -155,6 +156,15 @@ def plot_roc_curve(fpr, tpr):
     plt.ylabel('True Positive Rate')
     plt.title('Receiver Operating Characteristic (ROC) Curve')
     plt.legend()
+    plt.show()
+
+def plot_multi_class_roc_curve(y_true, y_probas):
+    """Plot Roc Curve
+    :param fpr: true classes
+    :param tpr: probability values
+    """
+    #TODO: untested and unused
+    skplt.metrics.plot_roc_curve(y_true, y_probas)
     plt.show()
 
 # def generateData(mutation_rate = 0.1, variant_count=10, sample_size = 1000, regulons_count = 200, mutation_not_found_rate = 0.2, noise=0.2):
@@ -316,14 +326,14 @@ def get_predicted_mapping(p_values, gene_data, regulon_data, alpha):
 
 def run_tests():
     """Run series of tests to test robustness of algorithm"""
-    sample_size = 3000
-    gene_count = 10000
-    regulon_count = 1000
-    genes_mutated_count = 100
+    sample_size = 300#3000
+    gene_count = 10#10000
+    regulon_count = 100#1000
+    genes_mutated_count = 5#100
     samples_mutated_rate = [0.05] # percentage of samples with mutated genes, we expect 0.05-0.15
     genes_random_rate = [0.05] # probability not mutated gene is observed as mutated 0.05
     regulons_random_rate = [0.1] # random distribution of regulon activity among non-affected regulons 0.1
-    miss_mutation_rate = [0.7, 0.95] # probability of there being a mutation but missing it 0.1 - 0.5
+    miss_mutation_rate = [0.1]#[0.7, 0.95] # probability of there being a mutation but missing it 0.1 - 0.5
     miss_regulon_rate = [0.15] # probability that activity of associated regulon is not expected 0.05 - 0.15
 
     for i in samples_mutated_rate:
